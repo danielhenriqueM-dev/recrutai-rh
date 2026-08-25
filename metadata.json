@@ -1,0 +1,8 @@
+{
+  "name": "RecrutAI-RH",
+  "description": "Plataforma completa de triagem, matching inteligente e gestão do pipeline de candidatos para RH.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

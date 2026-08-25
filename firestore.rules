@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Regras de Segurança do RecruitAI RH (RecrutAI-RH)
+    // Coleções principais: candidates, jobs, applications, interviews, evaluations, settings, audit_logs
+    
+    // Helper function para verificar se usuário está autenticado (quando houver login)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Regra padrão de desenvolvimento / corporativa interna
+    // Permite leitura e escrita completa para os módulos do RecruitAI RH
+    match /candidates/{candidateId} {
+      allow read, write: if true;
+    }
+    
+    match /jobs/{jobId} {
+      allow read, write: if true;
+    }
+    
+    match /applications/{applicationId} {
+      allow read, write: if true;
+    }
+    
+    match /interviews/{interviewId} {
+      allow read, write: if true;
+    }
+    
+    match /evaluations/{evaluationId} {
+      allow read, write: if true;
+    }
+    
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+    
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Fallback de segurança para quaisquer outras coleções
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
