@@ -201,6 +201,7 @@ Siga obrigatoriamente este fluxo:
 8. Depois de receber os textos dos currículos, gere o resultado
    final em JSON.
 
+9. dentro do texto extraído procure pelo nome do candito a vaga 
 REGRAS:
 
 - Nunca invente IDs.
@@ -219,7 +220,7 @@ Formato:
         {
             "email_id": "ID",
             "remetente": "EMAIL",
-            "assunto": "ASSUNTO",
+            "nome": "NOME",
             "texto_curriculo": "TEXTO EXTRAIDO"
         }
     ]
