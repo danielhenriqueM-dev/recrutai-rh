@@ -1,6 +1,7 @@
 import os
 import base64
 
+from dotenv import load_dotenv
 from Auth.authentication import conectar_gmail
 from pypdf import PdfReader
 
@@ -17,7 +18,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 #como vai se tornar um sistema que vai continuar na empresa depois que eu sair, vou tentar deixar tudo mais documentado possivel
 
-
+load_dotenv()
 
 # palavras passe - fora da função para n ser criada toda vez que puxa a função 
 subject_curriculo = [
@@ -345,10 +346,10 @@ def pinecone():
     #instancias basicas do pinecone
     pcapikey   = os.getenv("PINECONE_API_KEY")
     pinecone   = Pinecone(api_key = pcapikey)
-    index_name = "RH_CURRICULO_ANALISADOR"
+    index_name = "rh-curriculo-analisador"
 
     split      = splitter()
-    embendding = embendding()
+    embenddings = embendding()
     
     #verifica se existe um banco vetorial com esse nome , se n tiver ele cria
     if not pinecone.has_index(index_name):
@@ -365,8 +366,61 @@ def pinecone():
 
 
 
-
-    vector_store = PineconeVectorStore( index = index, embedding = embendding)
+    # colocanddo dentro do pinecone 
+    vector_store = PineconeVectorStore( index = index, embedding = embenddings)
     vector_store.add_documents(split)
 
+    return vector_store
 
+def llm():
+
+    
+    vector_store = pinecone()
+
+    #busca dentro do pinecone 
+    retriever = vector_store.as_retriever(
+        search_kwargs={"k": 4}
+    )
+
+    #modelo
+    model = ChatGoogleGenerativeAI(
+        model="gemini-3.6-flash"
+    )
+
+    documentos = retriever.invoke("experiência profissional, CNH, entregas")
+
+    #olha as paginas do arquivo no pinecone
+    contexto = "\n\n".join(
+        doc.page_content for doc in documentos
+    )
+
+    prompt = f"""
+    Analise o currículo abaixo para a vaga de Assistente da Administração
+    da MOTOMAR - Honda.
+
+    VAGA:
+    - CNH A/B é requisito obrigatório.
+    - Experiência com entrega é um diferencial.
+    - Entrega de motos entre unidades.
+    - Seguir rotas e cronogramas.
+    - Carregar e descarregar veículos.
+
+    CURRÍCULO:
+    {contexto}
+
+    Informe:
+    - Nome
+    - Possui CNH A/B?
+    - Possui experiência com entrega?
+    - Experiências relevantes
+    - Pontos positivos
+    - Pontos de atenção
+    - Compatibilidade de 0 a 100
+    - Classificação final
+    """
+
+    resposta = model.invoke(prompt)
+    print(resposta.content)
+    return resposta.content
+
+llm()
