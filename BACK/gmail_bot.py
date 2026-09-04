@@ -1,326 +1,284 @@
 import base64
-import json
-
-from dotenv import load_dotenv
-
-from langchain_core.messages import (
-    HumanMessage,
-    SystemMessage,
-    ToolMessage
-)
-
-from langchain_core.tools import tool
-
-from langchain_google_genai import ChatGoogleGenerativeAI
-
 from authentication import conectar_gmail
-
 from pypdf import PdfReader
 
 
-load_dotenv()
-
-service = conectar_gmail()
+#como vai se tornar um sistema que vai continuar na empresa depois que eu sair, vou tentar deixar tudo mais documentado possivel
 
 
-# ============================================================
-# TOOLS
-# ============================================================
 
-@tool
-def listar_email():
-    """
-    Lista os primeiros 10 emails da caixa de entrada principal.
-    Retorna ID, remetente, assunto e conteúdo do email.
-    """
+# palavras passe - fora da função para n ser criada toda vez que puxa a função 
+subject_curriculo = [
 
-    resultados = service.users().messages().list(
-        userId="me",
-        q="in:inbox category:primary",
-        maxResults=10
-    ).execute()
+    
+    "currículo",
+    "curriculo",
+    "cv",
+    "c.v.",
+    "resume",
+    "resumé",
+    "curriculum",
+    "curriculum vitae",
+    "envio de currículo",
+    "envio do currículo",
+    "enviando currículo",
+    "envio de cv",
+    "envio do cv",
+    "currículo profissional",
+    "curriculo profissional",
+    "currículo atualizado",
+    "curriculo atualizado",
 
-    messages = resultados.get("messages", [])
+    
+    "candidatura",
+    "candidatura à vaga",
+    "candidatura a vaga",
+    "candidatura para vaga",
+    "candidatura espontânea",
+    "vaga",
+    "vaga de emprego",
+    "vaga de trabalho",
+    "oportunidade",
+    "oportunidade de emprego",
+    "oportunidade profissional",
+    "processo seletivo",
+    "processo de seleção",
+    "candidato",
+    "perfil profissional",
+    "apresentação profissional",
+    "interesse na vaga",
+    "interesse profissional",
 
-    conteudo_emails = []
 
-    for message in messages:
+    "vendedor externo",
+    "supervisor externo",
+    "vendedor online",
+    "auxiliar administrativo",
+    "assistente de rh",
+    "analista de ti",
+    "jovem aprendiz",
+    "operador de caixa",
+    "montador",
+    "auxiliar mecânico",
+    "auxiliar serviços gerais",
+    "auxiliar de serviços gerais",
+    "assistente de administrativo",
+    "assistente administrativo",
+    "auxiliar administrativo credere",
+    "assistente administrativo emplacamento",
+    "assistente administrativo consorcio",
+    "assistente administrativo consórcio",
+    "vendedora",
+    "vendedora show room",
+    "vendedora showroom",
+    "show room",
+    "showroom",
+    "assistente de faturamento",
+    "jovem aprendiz faturamento",
+    "jovem aprendiz pós vendas",
+    "jovem aprendiz pós-vendas",
+    "estagiário de arquivologia",
+    "estagiária contábil",
+    "estagiario de arquivologia",
+    "estagiaria contabil",
+    "estagiária de adm pessoal",
+    "estagiario de adm pessoal",
+    "estagiário de adm pessoal",
+    "garantista",
+    "gerente de pós vendas",
+    "gerente de pós-vendas",
+    "motorista"
 
-        msg = service.users().messages().get(
-            userId="me",
-            id=message["id"],
-            format="full"
-        ).execute()
+]
 
-        headers = msg["payload"].get("headers", [])
+def gmail_inbox():
 
-        remetente = ""
+    gmail = conectar_gmail()
+
+    
+    inbox = gmail.users().messages().list(
+
+            userId     = "me",
+            q          = "in:inbox category:primary", # se n especificar vai puxar da caixa de spam tbm 
+            maxResults =  5
+
+    ).execute()   # puxa as 20 primeiras menssagens do inbox
+
+    print(" PUXANDO INBOX  ")
+
+    inbox_msg     =  inbox.get("messages",[]) 
+
+    gmail_content = []
+
+    for msgs in inbox_msg:
+
+        print(" SELECIONANDO MENSSAGENS ")
+
+        msg = gmail.users().messages().get(
+
+            userId = "me",
+            id     = msgs["id"],
+            format = "full"
+
+        ).execute()  # vai por menssagem em messagem retornando todo conteudo dela, no inbox ele so retorna o ID e o ID trhead, aqui ele usa esses ids para puxar o conteudo inteiro da menssagem
+
+        snippet     = msg.get("snippet")
+        headers_msg = msg["payload"].get("headers")   # puxa o cabeçalho do email, quem eviou , o email , name etcetcetc
+
+
+        #estou criando aqui para caso o email n tenha algum dos dois ele n dê erro 
         assunto = ""
+        header  = ""
 
-        for header in headers:
+        for header in headers_msg:
 
-            if header["name"].lower() == "from":
+        # uma representação visual de como o header ta agr  
+        #    headers = [    
+        #       {"name": "From", "value": "joao@gmail.com"},
+        #        {"name": "To", "value": "humberto@gmail.com"},
+        #        {"name": "Subject", "value": "Meu currículo"},
+        #        {"name": "Date", "value": "04 Sep 2026"}
+        #    ]
+        # ele faz várias voltas passando por cada parte do header até o fim   
+            
+            if header["name"].lower()   == "from":
+
+                print( " PUXANDO O REMETENTE ")
                 remetente = header["value"]
 
             elif header["name"].lower() == "subject":
+
+                print( " PUXANDO O SUBJECT ")
                 assunto = header["value"]
 
-        snippet = msg.get("snippet", "")
 
-        conteudo_emails.append({
-            "id": message["id"],
-            "remetente": remetente,
-            "assunto": assunto,
-            "conteudo": snippet
-        })
+        #verifica se tem alguma palavra passa no subject do email , independente se for maiúscula ou minuscula 
 
-    return conteudo_emails
+        if any(pass_word.lower() in assunto.lower() for pass_word in subject_curriculo):
+
+            print( " CURRICULO ")
+
+            gmail_content.append({
+            
+                            "id" : msg["id"],
+                            "remetente" : remetente,
+                            "assunto"   : assunto,
+                            "conteudo"  : snippet
+                    })
+        else:
+            print(" NÃO SE CLASSIFICA COMO UM CURRICULO")
+
+    
+    return gmail_content
 
 
-@tool
-def baixar_anexo(email_ids: list[str]):
-    """
-    Recebe os IDs dos emails classificados como currículos,
-    baixa os PDFs anexados e extrai o texto.
-    """
+def  attachment():
 
-    resultados = []
+    emails = gmail_inbox()
+    gmail  = conectar_gmail()
 
-    for email_id in email_ids:
+    #lista dos conteudos dos anexos em base 64 que a gente vai pegar
+    attachments = []
 
-        email = service.users().messages().get(
-            userId="me",
-            id=email_id,
-            format="full"
-        ).execute()
+    # aqui a gente ta buscando os email completos dos IDs selecionados 
+    for email in emails:
 
-        headers = email["payload"].get("headers", [])
+        get_full_email = gmail.users().messages().get(              
 
-        remetente = ""
-        assunto = ""
+            userId   = "me",
+            id       =  email["id"],
+            format   = "full"
+        ).execute() 
 
-        for header in headers:
+        print("RESGATANDO EMAIL DE CANDIDATOS JA SELECIONADOS")
 
-            if header["name"].lower() == "from":
-                remetente = header["value"]
-
-            elif header["name"].lower() == "subject":
-                assunto = header["value"]
-
-        partes = email["payload"].get("parts", [])
+        #retorna uma lista parecida com o heardes
+        partes = get_full_email["payload"].get("parts",[])                 
 
         for part in partes:
 
-            if part.get("mimeType") != "application/pdf":
-                continue
+            print("PROCURANDO ANEXO")
+            # rodamos a lista até acharmos o id do anexo 
+            attachment_id = part.get("body", {}).get("attachmentId")
 
-            attachment_id = part["body"].get("attachmentId")
+            
+            if attachment_id: 
 
-            if not attachment_id:
-                continue
+                print("ANEXO ENCONTRADO")
 
-            attachment = service.users().messages().attachments().get(
-                userId="me",
-                messageId=email_id,
-                id=attachment_id
-            ).execute()
+                attachment = gmail.users().messages().attachments().get(
 
-            pdf = base64.urlsafe_b64decode(
-                attachment["data"]
-            )
+                    userId    = "me",
+                    messageId = email["id"],
+                    id        = attachment_id
 
-            nome_arquivo = f"curriculo_{email_id}.pdf"
+                ).execute() # pegamos o conteudo do pdf em base 64
 
-            with open(nome_arquivo, "wb") as arquivo:
-                arquivo.write(pdf)
+                print("ANEXO BAIXADO EM BASE 64")
 
-            print("PDF baixado!")
+                attachments.append({
 
-            reader = PdfReader(nome_arquivo)
+                    "id"       : email["id"],
+                    "remetente": email["remetente"],
+                    "data"     : attachment["data"]
 
-            texto_completo = ""
+                    })
 
-            for pagina in reader.pages:
-
-                texto = pagina.extract_text()
-
-                if texto:
-                    texto_completo += texto + "\n"
-
-            resultados.append({
-                "email_id": email_id,
-                "remetente": remetente,
-                "assunto": assunto,
-                "texto": texto_completo
-            })
-
-    return resultados
+    
+    return attachments
 
 
-# ============================================================
-# IA
-# ============================================================
+def get_curriculum():
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-3.6-flash"
-)
+    anexos = attachment() 
 
-llm_with_tools = llm.bind_tools([
-    listar_email,
-    baixar_anexo
-])
+    curriculo = []
 
+    # baixar o pdf
+    
+    for anexo in anexos:
+        
+        pdf = base64.urlsafe_b64decode(
 
-SYSTEM_PROMPT = """
+            anexo["data"]
 
-Você é um agente responsável por fazer triagem de currículos
-recebidos por email.
-
-Siga obrigatoriamente este fluxo:
-
-1. Chame a ferramenta listar_email.
-
-2. Analise os emails retornados.
-
-3. Identifique quais emails são currículos ou candidaturas.
-
-4. Ignore emails que não tenham relação com:
-   - currículo
-   - candidatura
-   - emprego
-   - vaga
-   - recrutamento
-
-5. Pegue exatamente os IDs dos emails classificados como currículos.
-
-6. Chame a ferramenta baixar_anexo passando uma lista contendo
-   SOMENTE esses IDs.
-
-7. A ferramenta baixar_anexo irá baixar os PDFs e extrair os textos.
-
-8. Depois de receber os textos dos currículos, gere o resultado
-   final em JSON.
-
-9. dentro do texto extraído procure pelo nome do candito a vaga 
-REGRAS:
-
-- Nunca invente IDs.
-- Use exatamente os IDs retornados por listar_email.
-- Nunca chame baixar_anexo antes de listar_email.
-- Não baixe anexos de emails que não sejam currículos.
-- Não considere um email como currículo apenas porque possui PDF.
-- Não escreva explicações fora do JSON.
-
-O resultado final deve ser SOMENTE JSON válido.
-
-Formato:
-
-{
-    "curriculos": [
-        {
-            "email_id": "ID",
-            "remetente": "EMAIL",
-            "nome": "NOME",
-            "texto_curriculo": "TEXTO EXTRAIDO"
-        }
-    ]
-}
-
-Se nenhum currículo for encontrado:
-
-{
-    "curriculos": []
-}
-
-"""
-
-
-# ============================================================
-# AGENTE
-# ============================================================
-
-def classification_bot():
-
-    mensagens = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(
-            content="Faça a triagem dos emails recebidos."
         )
-    ]
 
-    while True:
+        name_file = f' curriculo_{anexo["id"]}.pdf'
 
-        resposta = llm_with_tools.invoke(mensagens)
+        with open(name_file, "wb") as file:
 
-        mensagens.append(resposta)
+            file.write(pdf)
 
-        # ----------------------------------------
-        # IA terminou
-        # ----------------------------------------
+        print(" PDF BAIXADO ")
 
-        if not resposta.tool_calls:
+        # ler pdf 
+        
+        reader = PdfReader(name_file)
 
-            print(resposta.content)
+        #onde vai ficar armazenado o texto inteiro do curriculo
+        full_text = ""
 
-            return resposta.content
+        #passamos página por página do pdf
+        for page in reader.pages:
 
-        # ----------------------------------------
-        # IA pediu alguma ferramenta
-        # ----------------------------------------
+            text = page.extract_text()
 
-        for tool_call in resposta.tool_calls:
+            if text:
 
-            nome = tool_call["name"]
+                full_text += text
 
-            argumentos = tool_call["args"]
+        curriculo.append({
 
-            print(
-                f"IA chamou: {nome}"
-            )
+            "id :"        : anexo["id"],
+            "remetente :" : anexo["remetente"],
+            "curriculo :" : full_text
+        })
 
-            print(
-                f"Argumentos: {argumentos}"
-            )
+    print(curriculo)
+    return curriculo
 
-            # ----------------------------------------
-            # listar_email
-            # ----------------------------------------
-
-            if nome == "listar_email":
-
-                resultado = listar_email.invoke(
-                    argumentos
-                )
-
-            # ----------------------------------------
-            # baixar_anexo
-            # ----------------------------------------
-
-            elif nome == "baixar_anexo":
-
-                resultado = baixar_anexo.invoke(
-                    argumentos
-                )
-
-            else:
-
-                raise ValueError(
-                    f"Tool desconhecida: {nome}"
-                )
-
-            # ----------------------------------------
-            # devolve resultado para a IA
-            # ----------------------------------------
-
-            mensagens.append(
-                ToolMessage(
-                    content=json.dumps(
-                        resultado,
-                        ensure_ascii=False
-                    ),
-                    tool_call_id=tool_call["id"]
-                )
-            )
+get_curriculum()
 
 
-classification_bot()
+
