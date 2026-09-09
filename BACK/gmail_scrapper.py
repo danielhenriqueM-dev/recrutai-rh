@@ -5,18 +5,6 @@ from dotenv import load_dotenv
 from Auth.authentication import conectar_gmail
 from pypdf import PdfReader
 
-from pinecone import Pinecone
-from pinecone import ServerlessSpec
-from langchain_pinecone import PineconeVectorStore
-
-from pinecone import Pinecone
-from pinecone import ServerlessSpec
-from langchain_pinecone import PineconeVectorStore
-
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
@@ -116,8 +104,8 @@ def gmail_inbox():
     inbox = gmail.users().messages().list(
 
             userId     = "me",
-            q          = "in:inbox category:primary", # se n especificar vai puxar da caixa de spam tbm 
-            maxResults =  20
+            q          = "in:inbox",
+            maxResults =  10
 
     ).execute()   # puxa as 20 primeiras menssagens do inbox
 

@@ -1,4 +1,5 @@
 import os 
+from dotenv import load_dotenv
 
 from pinecone import Pinecone
 from pinecone import ServerlessSpec
@@ -12,14 +13,55 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from gmail_scrapper import get_curriculum
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+load_dotenv()
+
+def fb():
+
+    credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+
+    credential = credentials.Certificate(credentials_path)
+
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(credential)
+
+
+    db = firestore.client()
+
+    doc_ref = db.collection("curriculos")
+    query   = doc_ref.limit(10)
+
+    docs = query.get()
+
+    curriculo = []
+
+    if docs:
+        for doc in docs:
+            curriculo.append({
+
+                "id": doc.id,
+                "conteudo": doc.to_dict()
+
+            })
+
+    print("CURRICULO ENVIADO DO FB")
+    print(curriculo)
+    return curriculo
+
+           
+    
+
+
 
 def splitter():
 
+    print("CURRICULO INDO PARA O SPLITTER")
     # aqui a gente vai dividir o curriculo em chunks para fazer o embendding e dps armazenar no bv
-    curriculos = get_curriculum()
+    curriculos = fb()
 
-  
+
     text_splitter = RecursiveCharacterTextSplitter(
 
         chunk_size    = 500,
@@ -30,21 +72,25 @@ def splitter():
 
     #pegando o texto ja separado do get_curriculum() e corta ele, alem disso ele manda o id como metadata
     for curriculo in curriculos:
-        
+
+        data = curriculo["conteudo"]
+
         chunks = text_splitter.create_documents(
-            [curriculo["curriculo"]],
+
+            [data["curriculo"]],
         
         metadatas = [{
 
                 "id": curriculo["id"],
-                "remetente": curriculo["remetente"]
+                "remetente": data["remetente"]
 
             }]
         )
 
         split.extend(chunks)
 
-    
+    print("CURRICULO INDO PARA O EMBENDDING")
+    print(split)
     return split 
 
 def embendding():
@@ -62,15 +108,16 @@ def embendding():
 
 
 
-def pinecone():
+def pinecone(split):
 
+    
 
     #instancias basicas do pinecone
     pcapikey   = os.getenv("PINECONE_API_KEY")
     pinecone   = Pinecone(api_key = pcapikey)
     index_name = "rh-curriculo-analisador"
 
-    split      = splitter()
+    
     embenddings = embendding()
     
     #verifica se existe um banco vetorial com esse nome , se n tiver ele cria
@@ -96,52 +143,71 @@ def pinecone():
 
 def llm():
 
-    
-    vector_store = pinecone()
+    doc_splitter = splitter()
 
-    #busca dentro do pinecone 
-    retriever = vector_store.as_retriever(
-        search_kwargs={"k": 4}
-    )
+    vector_store = pinecone(doc_splitter)
 
-    #modelo
     model = ChatGoogleGenerativeAI(
         model="gemini-3.6-flash"
     )
 
-    documentos = retriever.invoke("experiência profissional, CNH, entregas")
+    # Pega todos os IDs únicos
+    ids_curriculos = list({
+        doc.metadata["id"]
+        for doc in doc_splitter
+    })
 
-    #olha as paginas do arquivo no pinecone
-    contexto = "\n\n".join(
-        doc.page_content for doc in documentos
-    )
+    print("IDS DOS CURRÍCULOS:")
+    print(ids_curriculos)
 
-    prompt = f"""
-    Analise o currículo abaixo para a vaga de Assistente da Administração
-    da MOTOMAR - Honda.
+    # Analisa cada currículo
+    for id_curriculo in ids_curriculos:
 
-    VAGA:
-    - CNH A/B é requisito obrigatório.
-    - Experiência com entrega é um diferencial.
-    - Entrega de motos entre unidades.
-    - Seguir rotas e cronogramas.
-    - Carregar e descarregar veículos.
+        print("\n")
+        print("=" * 80)
+        print("ANALISANDO CURRÍCULO:", id_curriculo)
+        print("=" * 80)
 
-    CURRÍCULO:
-    {contexto}
+        # Pega somente os chunks desse currículo
+        documentos = vector_store.similarity_search(
+            "currículo completo",
+            k=10,
+            filter={
+                "id": id_curriculo
+            }
+        )
 
-    Informe:
-    - Nome
+        contexto = "\n\n".join(
+            doc.page_content
+            for doc in documentos
+        )
 
-    - Experiências relevantes
-    - Pontos positivos
-    - Pontos de atenção
-    - Compatibilidade de 0 a 100
-    - Classificação final
-    """
+        prompt = f"""
+        Analise o currículo abaixo para a vaga de Assistente da Administração
+        da MOTOMAR - Honda.
 
-    resposta = model.invoke(prompt)
-    print(resposta.content)
-    return resposta.content
+        VAGA:
+        - CNH A/B é requisito obrigatório.
+        - Experiência com entrega é um diferencial.
+        - Entrega de motos entre unidades.
+        - Seguir rotas e cronogramas.
+        - Carregar e descarregar veículos.
+
+        CURRÍCULO:
+        {contexto}
+
+        Informe:
+
+        - Nome
+        - Experiências relevantes
+        - Pontos positivos
+        - Pontos de atenção
+        - Compatibilidade de 0 a 100
+        - Classificação final
+        """
+
+        resposta = model.invoke(prompt)
+
+        print(resposta.content)
 
 llm()
